@@ -1,0 +1,173 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>∂μ // SINGULARITY.LAB</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;800&family=Space+Grotesk:wght@700&display=swap" rel="stylesheet">
+<style>
+:root{--g:#39ff14;--m:#ff2bd6;--c:#00f0ff;color-scheme:dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*{margin:0;cursor:none}html,body{height:100%;background:#000;color:var(--g);font:11px/1.35 'JetBrains Mono',ui-monospace,monospace;overflow:hidden}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+.h{position:fixed;z-index:3;padding:10px;pointer-events:none;white-space:pre;text-shadow:0 0 6px currentColor}
+#tl{top:env(safe-area-inset-top,0px);left:0;max-width:70vw}#tr{top:env(safe-area-inset-top,0px);right:0;color:var(--c)}
+#bl{bottom:env(safe-area-inset-bottom,0px);left:0;color:var(--m)}#br{bottom:env(safe-area-inset-bottom,0px);right:0;color:var(--c)}
+h1{font:700 clamp(26px,6.5vw,88px)/.82 'Space Grotesk',sans-serif;letter-spacing:-.07em;text-transform:uppercase;color:#000;-webkit-text-stroke:1px var(--g);white-space:normal;animation:k 5s ease-in-out infinite;text-shadow:none}
+@keyframes k{50%{letter-spacing:-.025em}}
+#eq{margin:8px 0;color:#fff;white-space:normal;border-left:3px solid var(--g);padding-left:8px;max-width:560px}#hk{opacity:.7;white-space:pre-wrap}
+#n{position:fixed;z-index:2;left:50%;bottom:-6vw;transform:translateX(-50%);font:700 34vw/1 'Space Grotesk',sans-serif;color:transparent;-webkit-text-stroke:1px rgba(57,255,20,.13);pointer-events:none}
+#cur{position:fixed;z-index:9;left:0;top:0;pointer-events:none}#cur i{position:absolute;left:-20px;top:0;width:40px;height:1px;background:#fff;mix-blend-mode:difference}
+#cur i::after{content:'';position:absolute;left:20px;top:-20px;width:1px;height:40px;background:#fff}#cur b{position:absolute;left:14px;top:12px;font-weight:400;color:#fff;white-space:pre;mix-blend-mode:difference}
+@media(max-width:700px){.h{font-size:9px}#hk,#bl{display:none}}
+</style></head><body>
+<canvas id="c"></canvas>
+<div class="h" id="tl"><h1 id="ti"></h1><div id="eq"></div><div id="hk">[1][2][3] MODE  [Q/E] PARAM-A  [A/D] PARAM-B
+[CLICK] INJECT  [SHIFT+CLICK] ALT  [SPACE] FREEZE  [R] RESET  [M] MUTE</div></div>
+<div class="h" id="tr"></div><div class="h" id="bl"></div><div class="h" id="br"></div>
+<div id="n"></div><div id="cur"><i></i><b id="cl"></b></div>
+
+<script type="x-shader/x-vertex" id="vg">uniform vec4 uM[8];uniform int uN;varying float vD;
+void main(){vec3 p=position;float d=0.;for(int i=0;i<8;i++){if(i>=uN)break;vec2 r=p.xz-uM[i].xy;d+=uM[i].z/sqrt(dot(r,r)+.15);}
+d=min(d*.6,6.);p.y=-d;vD=d;gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}</script>
+<script type="x-shader/x-fragment" id="fg">varying float vD;void main(){vec3 c=mix(vec3(.05,.9,.1),vec3(1.,.1,.7),smoothstep(0.,4.,vD));gl_FragColor=vec4(c*(.3+.22*vD),1.);}</script>
+<script type="x-shader/x-vertex" id="vp">attribute float w;uniform float uPx,uS;varying float vW;
+void main(){vW=w;vec4 mv=modelViewMatrix*vec4(position,1.);gl_PointSize=uPx*uS*(1.+w)/-mv.z;gl_Position=projectionMatrix*mv;}</script>
+<script type="x-shader/x-fragment" id="fp">uniform vec3 uA,uB;varying float vW;
+void main(){float r=length(gl_PointCoord-.5)*2.;if(r>1.)discard;gl_FragColor=vec4(mix(uA,uB,clamp(vW,0.,1.))*(1.-r*r)*1.5,1.);}</script>
+<script type="x-shader/x-vertex" id="vq">attribute vec2 g;uniform sampler2D uT;uniform float uPx;varying vec3 vC;
+void main(){vec4 t=texture2D(uT,g);float a=sqrt(t.r);vec3 p=position;p.y=a*4.+t.g*.6;float c=.5+.5*cos(t.b);
+vC=mix(vec3(.1,1.,.2),vec3(0.,.9,1.),c)*clamp(a*2.,.1,2.)+vec3(1.,.1,.4)*t.g*.5;
+vec4 mv=modelViewMatrix*vec4(p,1.);gl_PointSize=uPx*(.07+a*.25)/-mv.z;gl_Position=projectionMatrix*mv;}</script>
+<script type="x-shader/x-fragment" id="fq">varying vec3 vC;void main(){float r=length(gl_PointCoord-.5)*2.;if(r>1.)discard;gl_FragColor=vec4(vC*(1.-r*r),1.);}</script>
+
+<!-- PHYSICS WORKER: geodesic light / split-step-free leapfrog Schrödinger / Lorenz flow -->
+<script type="text/plain" id="wk">
+const N=128,P=1600,M=3000,rnd=Math.random;let mode=0,A=1,B=6,ms=[],lp=new Float32Array(P*4),R,I,V,L;
+function sp(i,f){const q=i*4,a=(rnd()-.5)*.1;lp[q]=f?-10+rnd()*20:-10;lp[q+1]=(rnd()-.5)*18;lp[q+2]=Math.cos(a);lp[q+3]=Math.sin(a)}
+function pk(ci,cj,kx,ky){const s=6;for(let j=2;j<N-2;j++)for(let i=2;i<N-2;i++){const dx=i-ci,dy=j-cj,g=Math.exp(-(dx*dx+dy*dy)/(2*s*s)),p=kx*dx+ky*dy,n=j*N+i;R[n]+=g*Math.cos(p);I[n]+=g*Math.sin(p)}}
+function rl(i,ox){const q=i*4;L[q]=ox+(rnd()-.5)*4;L[q+1]=(rnd()-.5)*4;L[q+2]=15+rnd()*20}
+function init(){if(mode==0)for(let i=0;i<P;i++)sp(i,1);else if(mode==1){R=new Float32Array(N*N);I=new Float32Array(N*N);V=new Float32Array(N*N);pk(64,64,A,0)}else{L=new Float32Array(M*4);for(let i=0;i<M;i++)rl(i,0)}}
+function s0(o,dt){const c=B,h=dt/2;let hit=0,fl=0;
+for(let i=0;i<P;i++){const q=i*4;let x=lp[q],z=lp[q+1],dx=lp[q+2],dz=lp[q+3],aw=0,dead=0,dep=0;
+for(let s=0;s<2;s++){let ax=0,az=0;dep=0;
+for(const m of ms){const rx=m[0]-x,rz=m[1]-z,r2=rx*rx+rz*rz,e=r2+.15,k=10*m[2]/(e*Math.sqrt(e));ax+=rx*k;az+=rz*k;dep+=m[2]/Math.sqrt(e);if(r2<.04*m[2]*m[2]){dead=1;hit=Math.max(hit,m[2])}}
+dx+=ax*h/c;dz+=az*h/c;const n=Math.hypot(dx,dz);dx/=n;dz/=n;x+=dx*c*h;z+=dz*c*h;aw=Math.hypot(ax,az)}
+if(dead||Math.abs(x)>10.5||Math.abs(z)>10.5){sp(i,0);x=lp[q];z=lp[q+1];dx=lp[q+2];dz=lp[q+3];dep=0}
+lp[q]=x;lp[q+1]=z;lp[q+2]=dx;lp[q+3]=dz;const w=Math.min(1,aw*.08);fl+=w;
+o[q]=x;o[q+1]=-Math.min(dep*.6,6)+.05;o[q+2]=z;o[q+3]=w}
+return[ms.length,c,ms.reduce((a,m)=>a+m[2],0),hit,fl/P]}
+function s1(o){const d=.2,K=(a,n)=>-.5*(a[n-1]+a[n+1]+a[n-N]+a[n+N]-4*a[n]);
+for(let s=0;s<4;s++){for(let j=1;j<N-1;j++)for(let i=1;i<N-1;i++){const n=j*N+i;R[n]+=d*(K(I,n)+V[n]*I[n])}
+for(let j=1;j<N-1;j++)for(let i=1;i<N-1;i++){const n=j*N+i;I[n]-=d*(K(R,n)+V[n]*R[n])}}
+let nm=0,mx=0;for(let n=0;n<N*N;n++){const i=n%N,j=n/N|0,e=Math.min(i,j,N-1-i,N-1-j),f=e<10?1-.2*(1-e/10)**2:1;R[n]*=f;I[n]*=f;const p=R[n]*R[n]+I[n]*I[n];nm+=p;if(p>mx)mx=p;
+o[n*4]=p;o[n*4+1]=V[n];o[n*4+2]=Math.atan2(I[n],R[n]);o[n*4+3]=1}
+return[nm,Math.sqrt(mx),0,0,Math.sqrt(mx)]}
+function s2(o){const r=A,sg=B,be=8/3,h=.005;let hit=0,sp=0;
+for(let i=0;i<M;i++){const q=i*4;let x=L[q],y=L[q+1],z=L[q+2],sx=Math.sign(x),v=0;
+for(let s=0;s<6;s++){const a=sg*(y-x),b=x*(r-z)-y,c=x*y-be*z;x+=a*h;y+=b*h;z+=c*h;v=Math.hypot(a,b,c)}
+if(!(Math.abs(x)<200)){rl(i,0);continue}
+if(sx*Math.sign(x)<0)hit=Math.max(hit,Math.min(1,v/100));sp+=v;
+L[q]=x;L[q+1]=y;L[q+2]=z;o[q]=x*.4;o[q+1]=(z-25)*.4;o[q+2]=y*.4;o[q+3]=Math.min(1,v/90)}
+return[sp/M,r,sg,hit,sp/M/90]}
+onmessage=e=>{const d=e.data;
+if(d.t=='mode'){mode=d.m;A=d.A;B=d.B;init()}else if(d.t=='p'){A=d.A;B=d.B}else if(d.t=='ms')ms=d.a;
+else if(d.t=='pk'&&mode==1)pk(d.i,d.j,d.kx,d.ky);
+else if(d.t=='bar'&&mode==1){for(let j=0;j<N;j++)for(let i=0;i<N;i++)if((i-d.i)**2+(j-d.j)**2<30)V[j*N+i]=B}
+else if(d.t=='burst'&&mode==2){for(let k=0;k<400;k++)rl(rnd()*M|0,d.x)}
+else if(d.t=='reset')init();
+else if(d.t=='tick'){const t0=performance.now(),o=d.b,s=mode==0?s0(o,d.dt):mode==1?s1(o):s2(o);postMessage({b:o,s,m:mode,ms:performance.now()-t0},[o.buffer])}}
+</script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script type="module">
+const $=s=>document.querySelector(s),sh=id=>document.getElementById(id).textContent,N=128,P=1600,M=3000;
+const ren=new THREE.WebGLRenderer({canvas:$('#c'),preserveDrawingBuffer:true,powerPreference:'high-performance'});
+ren.autoClear=false;ren.setPixelRatio(Math.min(devicePixelRatio,2));
+const sc=new THREE.Scene(),cam=new THREE.PerspectiveCamera(55,1,.1,200),fs=new THREE.Scene(),fc=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+const fm=new THREE.MeshBasicMaterial({color:0,transparent:true,opacity:.4,depthTest:false});fs.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),fm));
+const PX=[];const px=()=>{const u={value:1};PX.push(u);return u};
+// MODE 0: Minkowski sheet + light
+const uM={value:Array.from({length:8},()=>new THREE.Vector4())},uN={value:0};
+const gm=new THREE.PlaneGeometry(20,20,80,80);gm.rotateX(-Math.PI/2);
+const grid=new THREE.Mesh(gm,new THREE.ShaderMaterial({uniforms:{uM,uN},vertexShader:sh('vg'),fragmentShader:sh('fg'),wireframe:true}));
+function pts(n,a,b,s){const ib=new THREE.InterleavedBuffer(new Float32Array(n*4),4),g=new THREE.BufferGeometry();
+g.setAttribute('position',new THREE.InterleavedBufferAttribute(ib,3,0));g.setAttribute('w',new THREE.InterleavedBufferAttribute(ib,1,3));
+const m=new THREE.Points(g,new THREE.ShaderMaterial({uniforms:{uA:{value:new THREE.Color(a)},uB:{value:new THREE.Color(b)},uS:{value:s},uPx:px()},vertexShader:sh('vp'),fragmentShader:sh('fp'),transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));
+m.frustumCulled=false;m.userData.ib=ib;return m}
+const light=pts(P,0x39ff14,0xff2bd6,.16),lor=pts(M,0x00a0ff,0xffffff,.1);
+// MODE 1: psi cloud
+const qd=new Float32Array(N*N*4),qt=new THREE.DataTexture(qd,N,N,THREE.RGBAFormat,THREE.FloatType);qt.minFilter=qt.magFilter=THREE.NearestFilter;
+const qg=new THREE.BufferGeometry(),qp=new Float32Array(N*N*3),qu=new Float32Array(N*N*2);
+for(let j=0;j<N;j++)for(let i=0;i<N;i++){const n=j*N+i;qp[n*3]=(i/(N-1)-.5)*20;qp[n*3+2]=(j/(N-1)-.5)*20;qu[n*2]=(i+.5)/N;qu[n*2+1]=(j+.5)/N}
+qg.setAttribute('position',new THREE.BufferAttribute(qp,3));qg.setAttribute('g',new THREE.BufferAttribute(qu,2));
+const qm=new THREE.Points(qg,new THREE.ShaderMaterial({uniforms:{uT:{value:qt},uPx:px()},vertexShader:sh('vq'),fragmentShader:sh('fq'),transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));qm.frustumCulled=false;
+const G=[[grid,light],[qm],[lor]];G.flat().forEach(o=>sc.add(o));
+
+// STATE
+const T=['SPACETIME GEODESICS','SCHRODINGER ψ WELL','LORENZ STRANGE FLOW'];
+const EQ=['ds² = −(1−2GM/rc²)c²dt² + (1−2GM/rc²)⁻¹dr² + r²dΩ²   // null geodesics: ds²=0, k^μ∇_μk^ν=0',
+'iħ ∂ψ/∂t = [−ħ²/2m ∇² + V(x)]ψ   // ρ=|ψ|², Σρ=1 enforced by Lagrange multiplier λ',
+'ẋ=σ(y−x)  ẏ=x(ρ−z)−y  ż=xy−βz   // ∇·F = −(σ+1+β): phase volume collapses onto a fractal'];
+const PR=[[1,6],[.6,1.5],[28,10]],RG=[[[.4,4,.2],[3,14,.5]],[[.1,1.4,.05],[.3,4,.1]],[[8,60,1],[2,24,.5]]];
+let mode=0,ms=[[0,0,2.5]],paused=0,muted=0,mx=0,my=0,sx=0,sy=0,ready=true,buf=new Float32Array(N*N*4),S=[0,0,0,0,0],wms=0,fps=60,last=performance.now(),fr=0;
+const rc=new THREE.Raycaster(),pl=new THREE.Plane(new THREE.Vector3(0,1,0),0),v=new THREE.Vector3(),nd=new THREE.Vector2();
+const pick=()=>{nd.set(mx,my);rc.setFromCamera(nd,cam);return rc.ray.intersectPlane(pl,v)};
+
+// WORKER (blob; falls back to main thread if blocked)
+const src=sh('wk');let w;
+function fb(){const h=new Function('postMessage',src+';return onmessage;')(d=>setTimeout(()=>w.onmessage({data:d[0]||d}),0));
+ window.onmessage=null;const old=w&&w.onmessage;w={postMessage:d=>setTimeout(()=>h({data:d}),0),onmessage:old};boot()}
+try{w=new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));w.onerror=fb}catch(e){fb()}
+const onW=e=>{const d=e.data;buf=d.b;ready=true;if(d.m!==mode)return;S=d.s;wms=d.ms;
+ if(mode==0){light.userData.ib.array.set(buf.subarray(0,P*4));light.userData.ib.needsUpdate=true}
+ else if(mode==1){qd.set(buf.subarray(0,N*N*4));qt.needsUpdate=true}
+ else{lor.userData.ib.array.set(buf.subarray(0,M*4));lor.userData.ib.needsUpdate=true}
+ if(S[3]>0)ping(S[3])};
+w.onmessage=onW;
+function syncMs(){uN.value=ms.length;ms.forEach((m,i)=>uM.value[i].set(m[0],m[1],m[2],0));w.postMessage({t:'ms',a:ms})}
+function boot(){w.onmessage=onW;ready=true;w.postMessage({t:'mode',m:mode,A:PR[mode][0],B:PR[mode][1]});syncMs()}
+
+// AUDIO: generative drone tracks field strength; pings track collision energy
+let ac,dr,fl,mg,lastPing=0;const GK=[6,1,1];
+function audio(){if(ac)return;ac=new AudioContext();mg=ac.createGain();mg.gain.value=.14;mg.connect(ac.destination);
+dr=ac.createOscillator();dr.type='sawtooth';fl=ac.createBiquadFilter();fl.type='lowpass';const g=ac.createGain();g.gain.value=.3;dr.connect(fl);fl.connect(g);g.connect(mg);dr.start()}
+function ping(s){const t=performance.now();if(!ac||muted||t-lastPing<110)return;lastPing=t;const o=ac.createOscillator(),g=ac.createGain(),n=ac.currentTime;
+o.type='square';o.frequency.value=180+Math.min(1,s/3)*900;g.gain.setValueAtTime(.18,n);g.gain.exponentialRampToValueAtTime(.001,n+.22);o.connect(g);g.connect(mg);o.start();o.stop(n+.25)}
+
+// UI
+function scr(el,t){let n=0;const iv=setInterval(()=>{el.textContent=t.split('').map((c,i)=>i<n||c==' '?c:'▓▒░#@%/'[Math.random()*7|0]).join('');if(++n>t.length){clearInterval(iv);el.textContent=t}},28)}
+function setMode(m){mode=m;G.forEach((g,i)=>g.forEach(o=>o.visible=i==m));fm.opacity=[.45,.5,.07][m];ren.clear();
+ if(m==0&&!ms.length)ms=[[0,0,2.5]];boot();scr($('#ti'),T[m]);scr($('#eq'),EQ[m]);$('#n').textContent='0'+(m+1)}
+function par(a,b){const r=RG[mode],p=PR[mode];if(a)p[0]=Math.min(r[0][1],Math.max(r[0][0],p[0]+a*r[0][2]));if(b)p[1]=Math.min(r[1][1],Math.max(r[1][0],p[1]+b*r[1][2]));w.postMessage({t:'p',A:p[0],B:p[1]})}
+addEventListener('keydown',e=>{audio();const k=e.key.toLowerCase();
+ if('123'.includes(k)&&k)setMode(+k-1);else if(k=='q')par(-1,0);else if(k=='e')par(1,0);else if(k=='a')par(0,-1);else if(k=='d')par(0,1);
+ else if(k==' '){paused^=1;e.preventDefault()}else if(k=='r'){if(mode==0){ms=[[0,0,2.5]];syncMs()}w.postMessage({t:'reset'});ren.clear()}else if(k=='m')muted^=1});
+addEventListener('pointermove',e=>{sx=e.clientX;sy=e.clientY;mx=sx/innerWidth*2-1;my=-(sy/innerHeight*2-1);$('#cur').style.transform=`translate(${sx}px,${sy}px)`;$('#n').style.transform=`translateX(-50%) skewX(${mx*12}deg)`});
+addEventListener('pointerdown',e=>{audio();if(ac&&ac.state=='suspended')ac.resume();mx=e.clientX/innerWidth*2-1;my=-(e.clientY/innerHeight*2-1);
+ if(mode==2)return w.postMessage({t:'burst',x:mx*15});
+ if(!pick())return;
+ if(mode==0){ms.push([v.x,v.z,(e.shiftKey?.9:2.5)*PR[0][0]]);if(ms.length>8)ms.shift();syncMs()}
+ else{const i=(v.x/20+.5)*(N-1),j=(v.z/20+.5)*(N-1);if(e.shiftKey)w.postMessage({t:'bar',i:i|0,j:j|0});
+  else{let dx=64-i,dy=64-j,l=Math.hypot(dx,dy);if(l<5){dx=1;dy=0;l=1}const k=PR[1][0];w.postMessage({t:'pk',i,j,kx:dx/l*k,ky:dy/l*k})}}
+ ping(1.5)});
+function resize(){ren.setSize(innerWidth,innerHeight);cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();PX.forEach(u=>u.value=ren.domElement.height*.5)}
+addEventListener('resize',resize);resize();
+
+// HUD
+const f=(x,n=3)=>(x<0?'':' ')+x.toFixed(n),Z=' 0.000';
+function hud(){const p=PR[mode];
+ $('#tr').textContent=`┌ TELEMETRY ─────────\n│ FPS   ${fps.toFixed(1).padStart(7)}\n│ FRAME ${(1000/fps).toFixed(1).padStart(7)} ms\n│ SIM   ${wms.toFixed(2).padStart(7)} ms [WK]\n│ A ${p[0].toFixed(2)}   B ${p[1].toFixed(2)}\n│ ${paused?'■ FROZEN':'▶ LIVE  '} ${ac&&!muted?'♪ ON':'♪ --'}`;
+ const mem=performance.memory?(performance.memory.usedJSHeapSize/1048576).toFixed(1)+' MB':'n/a',i=ren.info;
+ $('#br').textContent=`┌ ALLOC ─────────────\n│ JS HEAP ${mem.padStart(9)}\n│ GPU GEO ${String(i.memory.geometries).padStart(9)}\n│ GPU TEX ${String(i.memory.textures).padStart(9)}\n│ DRAW    ${String(i.render.calls).padStart(9)}\n│ XFER BUF ${(buf.byteLength/1024|0)||256} KB`;
+ let t;
+ if(mode==0){pick();let d=0;for(const m of ms){const rx=v.x-m[0],rz=v.z-m[1];d+=m[2]/Math.sqrt(rx*rx+rz*rz+.15)}const q=Math.min(d*.6,6)*.1,g=[-(1-2*q),1+2*q,1+2*q,1+2*q];
+  t=`┌ g_μν @(${f(v.x,1)},${f(v.z,1)})\n`+g.map((a,i)=>'│ '+[0,1,2,3].map(j=>i==j?f(a):Z).join(' ')).join('\n')+`\n│ λ_null = g_μν k^μ k^ν = 0 [renorm]\n│ Φ=${f(-q)}  M=${f(S[2],1)}  n=${S[0]}`}
+ else if(mode==1){pick();const i=Math.max(0,Math.min(N-1,(v.x/20+.5)*(N-1)|0)),j=Math.max(0,Math.min(N-1,(v.z/20+.5)*(N-1)|0)),n=(j*N+i)*4,r=Math.sqrt(qd[n]);
+  t=`┌ ψ(x) @ cell ${i},${j}\n│ ψ = ${f(r*Math.cos(qd[n+2]))} ${qd[n+2]<0?'−':'+'} ${Math.abs(r*Math.sin(qd[n+2])).toFixed(3)}i\n│ ρ=|ψ|² = ${f(qd[n])}\n│ V(x)   = ${f(qd[n+1])}\n│ λ_norm ∫ρ = ${f(S[0],2)}\n│ ψ_max   = ${f(S[1])}`}
+ else{const a=lor.userData.ib.array,x=a[0]/.4,y=a[2]/.4,z=a[1]/.4+25,s=p[1],r=p[0];
+  t=`┌ J_ij @ particle 0\n│ ${f(-s,2)} ${f(s,2)} ${f(0,2)}\n│ ${f(r-z,2)} ${f(-1,2)} ${f(-x,2)}\n│ ${f(y,2)} ${f(x,2)} ${f(-8/3,2)}\n│ λ=∇·F = ${f(-(s+1+8/3),3)}\n│ <|F|> = ${f(S[0],1)}`}
+ $('#bl').textContent=t;$('#cl').textContent=mode<2?`x${f(v.x,1)} z${f(v.z,1)}`:`${sx|0},${sy|0}`}
+
+function frame(t){requestAnimationFrame(frame);const dt=Math.min((t-last)/1000,.033)||.016;last=t;fps+=(1/dt-fps)*.05;
+ if(ready&&!paused){ready=false;w.postMessage({t:'tick',dt,b:buf},[buf.buffer])}
+ const r=mode==2?24:17,a=t*6e-5+mx*.5;cam.position.set(Math.sin(a)*r,(mode==2?4:12)+my*5,Math.cos(a)*r);cam.lookAt(0,mode==2?0:-1,0);
+ if(ac){const k=Math.min(1,S[4]*GK[mode]);dr.frequency.setTargetAtTime(38+k*220,ac.currentTime,.1);fl.frequency.setTargetAtTime(150+k*1800,ac.currentTime,.1);mg.gain.value=muted?0:.14}
+ ren.render(fs,fc);ren.clearDepth();ren.render(sc,cam);if(++fr%8==0)hud()}
+setMode(0);requestAnimationFrame(frame);
+</script></body></html>
